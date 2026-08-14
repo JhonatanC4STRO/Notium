@@ -1,0 +1,38 @@
+{
+  "name": "notium-backend",
+  "version": "1.0.0",
+  "description": "Backend de sincronización de Notium (offline-first) — API REST con Node.js + Express + PostgreSQL. Implementa el contrato de doc/openapi.yaml.",
+  "main": "src/server.js",
+  "private": true,
+  "license": "LicenseRef-Academico-SENA",
+  "author": {
+    "name": "Jhonatan Castro",
+    "email": "shonano247@gmail.com"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "nodemon src/server.js",
+    "test": "jest --runInBand --testTimeout=20000",
+    "migrate": "node-pg-migrate --migrations-dir migrations --migration-file-language sql up",
+    "migrate:down": "node-pg-migrate --migrations-dir migrations --migration-file-language sql down",
+    "migrate:create": "node-pg-migrate --migrations-dir migrations --migration-file-language sql create"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "express-openapi-validator": "^5.6.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.2.0",
+    "node-pg-migrate": "^7.9.1",
+    "pg": "^8.12.0"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "nodemon": "^3.1.4",
+    "supertest": "^7.0.0"
+  }
+}

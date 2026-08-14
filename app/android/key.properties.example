@@ -1,0 +1,6 @@
+# Copiar como key.properties mediante scripts/create-signing-key.ps1.
+# Tanto este archivo real como el .jks estan ignorados por Git.
+storePassword=CAMBIAR
+keyPassword=CAMBIAR
+keyAlias=upload
+storeFile=../upload-keystore.jks

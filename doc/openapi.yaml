@@ -1,0 +1,973 @@
+openapi: 3.1.0
+
+info:
+  title: API REST de Notium
+  version: 1.0.0
+  summary: Backend de sincronización para la plataforma Notium offline-first.
+  description: |
+    API REST del backend de **Notium**, la plataforma de toma de notas
+    offline-first (programa ADSO — SENA). Implementada con Node.js + Express +
+    PostgreSQL (sección 6.2 y ADR-05 del documento de arquitectura).
+
+    El núcleo del sistema es la sincronización por lotes (`/sync/push` y
+    `/sync/pull`), definida en la sección 5.5 del documento de arquitectura:
+
+    - Los identificadores (`uuid`) los genera **el cliente** (UUID v4); el
+      servidor solo los acepta (sección 5.1).
+    - `POST /sync/push` es **idempotente por la clave `(uuid, version)`**:
+      reenviar la misma operación tras un reintento no duplica datos.
+    - Los conflictos se resuelven con **Last-Write-Wins** sobre `updated_at`,
+      usando `version` para detectar la edición concurrente (sección 5.3).
+    - Las eliminaciones se propagan como **tombstones** (`is_deleted = true`,
+      sección 5.4).
+    - Toda comunicación usa HTTPS/TLS; la autenticación es JWT
+      (access + refresh) y las contraseñas se almacenan con hash bcrypt.
+  contact:
+    name: Jhonatan Castro
+    email: shonano247@gmail.com
+  license:
+    name: Uso académico — SENA (ADSO)
+    identifier: LicenseRef-Academico-SENA
+
+servers:
+  - url: https://api.notium.example.com/v1
+    description: Servidor de producción (infraestructura de bajo costo, sección 2.3).
+  - url: http://localhost:3000/v1
+    description: Servidor local de desarrollo.
+
+tags:
+  - name: Autenticación
+    description: Registro, inicio de sesión y ciclo de vida de los tokens JWT (sección 8).
+  - name: Sincronización
+    description: Núcleo del sistema — envío y recepción de lotes de cambios (secciones 5.2, 5.3 y 5.5).
+  - name: Adjuntos
+    description: Carga y descarga de archivos adjuntos, fuera del lote de sincronización (RNF-05).
+  - name: Historial
+    description: Historial de auditoría de cambios por nota (RF-05).
+  - name: Utilidades
+    description: Endpoints de soporte y monitoreo.
+
+security:
+  - bearerAuth: []
+
+paths:
+  /auth/register:
+    post:
+      tags: [Autenticación]
+      operationId: registrarUsuario
+      summary: Registrar un usuario nuevo
+      description: |
+        Crea una cuenta de usuario. El `uuid` del usuario lo genera el cliente
+        (UUID v4, sección 5.1) y el servidor lo acepta tras validar la unicidad
+        del email. La contraseña se almacena con hash bcrypt. Requiere red:
+        no existe registro offline.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegistroRequest'
+      responses:
+        '201':
+          description: Usuario creado. Devuelve la sesión inicial con el par de tokens JWT.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SesionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorValidacion'
+        '409':
+          description: El email ya está registrado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/login:
+    post:
+      tags: [Autenticación]
+      operationId: iniciarSesion
+      summary: Iniciar sesión
+      description: |
+        Valida las credenciales y devuelve el par de tokens JWT
+        (access + refresh). El cliente los almacena en `flutter_secure_storage`
+        para habilitar la validación local de sesión estando offline (sección 8).
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Sesión iniciada correctamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SesionResponse'
+        '400':
+          $ref: '#/components/responses/ErrorValidacion'
+        '401':
+          description: Credenciales inválidas.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags: [Autenticación]
+      operationId: refrescarToken
+      summary: Refrescar el access token
+      description: |
+        Emite un nuevo access token a partir de un refresh token vigente.
+        Este endpoint acepta un access token **expirado** en la cabecera
+        `Authorization` (se valida únicamente la firma, no la expiración),
+        dado que se invoca precisamente cuando el access token venció durante
+        una sincronización (flujo de la sección 8).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '200':
+          description: Nuevo par de tokens emitido.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokensResponse'
+        '401':
+          description: Refresh token inválido o expirado. El cliente debe reautenticarse con credenciales.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/logout:
+    post:
+      tags: [Autenticación]
+      operationId: cerrarSesion
+      summary: Cerrar sesión
+      description: |
+        Invalida el refresh token del dispositivo en el servidor. Soporta la
+        mitigación de la sección 9: ante pérdida o robo del dispositivo, la
+        sesión puede invalidarse remotamente y surtirá efecto en la próxima
+        conexión.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+      responses:
+        '204':
+          description: Sesión cerrada; el refresh token queda invalidado.
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+
+  /sync/push:
+    post:
+      tags: [Sincronización]
+      operationId: enviarLoteSync
+      summary: Enviar lote de operaciones pendientes
+      description: |
+        Recibe un **lote (array) de operaciones** generadas offline y devuelve
+        un **array de resultados en el mismo orden**, según el contrato de la
+        sección 5.5 del documento de arquitectura.
+
+        - **Idempotencia por la clave `(uuid, version)`** (sección 6.3): reenviar una operación ya procesada
+          (por ejemplo, tras un reintento de la `SyncTask` con backoff
+          exponencial) devuelve el mismo resultado sin duplicar datos.
+        - **Detección de conflictos**: si la `version` enviada no coincide con
+          la del servidor, se resuelve por Last-Write-Wins sobre `updated_at`
+          (sección 5.3). El cambio descartado se registra en el historial con
+          `origen_cambio = CONFLICTO_DESCARTADO`.
+        - El servidor valida que cada registro pertenezca al usuario
+          autenticado (`usuario_uuid`) antes de aceptar el cambio (sección 8).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncPushRequest'
+            examples:
+              loteMixto:
+                summary: Lote con creación, edición y eliminación (tombstone)
+                value:
+                  device_id: disp-8842
+                  operaciones:
+                    - uuid: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                      entidad: NOTA
+                      operacion: CREATE
+                      payload:
+                        titulo: Acta de reunión
+                        contenido: Puntos tratados en la reunión del 6 de julio...
+                      updated_at: '2026-07-06T10:15:00Z'
+                      version: 1
+                    - uuid: 9b2e4c1a-0d3f-4e7b-a1c5-6f8d2e9b7a41
+                      entidad: NOTA
+                      operacion: UPDATE
+                      payload:
+                        titulo: Presupuesto v2
+                      updated_at: '2026-07-06T10:16:30Z'
+                      version: 3
+                    - uuid: 5c7d9e21-4a6b-4f3c-9d8e-1b2a3c4d5e6f
+                      entidad: NOTA
+                      operacion: DELETE
+                      payload: {}
+                      updated_at: '2026-07-06T10:17:10Z'
+                      version: 2
+      responses:
+        '200':
+          description: |
+            Lote procesado **sin conflictos**: todos los resultados son
+            `ACCEPTED` (puede incluir items `ERROR` por validación individual).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncPushResponse'
+              examples:
+                todoAceptado:
+                  summary: Todas las operaciones aceptadas
+                  value:
+                    resultados:
+                      - uuid: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                        estado: ACCEPTED
+                        version_servidor: 1
+                      - uuid: 9b2e4c1a-0d3f-4e7b-a1c5-6f8d2e9b7a41
+                        estado: ACCEPTED
+                        version_servidor: 4
+                      - uuid: 5c7d9e21-4a6b-4f3c-9d8e-1b2a3c4d5e6f
+                        estado: ACCEPTED
+                        version_servidor: 3
+        '409':
+          description: |
+            Lote procesado con **al menos un conflicto** (diagrama de la
+            sección 3.4b: "409 + versión del servidor"). El cuerpo contiene el
+            array completo de resultados en el mismo orden del lote; los items
+            en `CONFLICT` incluyen la versión y el payload autoritativos del
+            servidor para la resolución local (sección 5.3). Los items sin
+            conflicto del mismo lote **sí quedaron aplicados**.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncPushResponse'
+              examples:
+                conConflicto:
+                  summary: Un item aceptado y uno en conflicto
+                  value:
+                    resultados:
+                      - uuid: 3fa85f64-5717-4562-b3fc-2c963f66afa6
+                        estado: ACCEPTED
+                        version_servidor: 1
+                      - uuid: 9b2e4c1a-0d3f-4e7b-a1c5-6f8d2e9b7a41
+                        estado: CONFLICT
+                        version_servidor: 4
+                        payload_servidor:
+                          titulo: Presupuesto v3
+                          contenido: Versión ajustada por el otro dispositivo
+                          updated_at: '2026-07-06T10:16:45Z'
+        '400':
+          $ref: '#/components/responses/ErrorValidacion'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+
+  /sync/pull:
+    get:
+      tags: [Sincronización]
+      operationId: obtenerCambiosServidor
+      summary: Obtener cambios del servidor
+      description: |
+        Devuelve los cambios del usuario autenticado posteriores a la marca de
+        tiempo indicada, para que los demás dispositivos del mismo usuario
+        converjan (RNF-02). Incluye tombstones (`is_deleted = true`) para
+        propagar eliminaciones (sección 5.4).
+
+        El cliente debe persistir `timestamp_servidor` de la respuesta y usarlo
+        como `desde` en la siguiente consulta, garantizando que ningún cambio
+        se pierda entre sincronizaciones.
+      parameters:
+        - name: desde
+          in: query
+          required: true
+          description: |
+            Marca de tiempo (ISO 8601) del último `timestamp_servidor` recibido.
+            Se devuelven los cambios estrictamente posteriores.
+          schema:
+            type: string
+            format: date-time
+          example: '2026-07-06T10:00:00Z'
+        - name: device_id
+          in: query
+          required: false
+          description: |
+            Identificador del dispositivo consultante. Si se envía, se excluyen
+            los cambios originados por ese mismo dispositivo (evita ecos).
+          schema:
+            type: string
+          example: disp-8842
+        - name: limite
+          in: query
+          required: false
+          description: Cantidad máxima de cambios por página.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 500
+            default: 100
+      responses:
+        '200':
+          description: Cambios pendientes de aplicar en el dispositivo consultante.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncPullResponse'
+              examples:
+                cambiosPendientes:
+                  summary: Una edición remota y un tombstone
+                  value:
+                    cambios:
+                      - uuid: 9b2e4c1a-0d3f-4e7b-a1c5-6f8d2e9b7a41
+                        entidad: NOTA
+                        operacion: UPDATE
+                        payload:
+                          titulo: Presupuesto v3
+                          contenido: Versión ajustada por el otro dispositivo
+                        version: 4
+                        updated_at: '2026-07-06T10:16:45Z'
+                        is_deleted: false
+                        device_id: disp-1204
+                      - uuid: 5c7d9e21-4a6b-4f3c-9d8e-1b2a3c4d5e6f
+                        entidad: NOTA
+                        operacion: DELETE
+                        payload: {}
+                        version: 3
+                        updated_at: '2026-07-06T10:17:10Z'
+                        is_deleted: true
+                        device_id: disp-1204
+                    timestamp_servidor: '2026-07-06T10:18:02Z'
+                    hay_mas: false
+        '400':
+          $ref: '#/components/responses/ErrorValidacion'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+
+  /attachments:
+    post:
+      tags: [Adjuntos]
+      operationId: subirAdjunto
+      summary: Subir un archivo adjunto
+      description: |
+        Carga el archivo físico de un adjunto mediante `multipart/form-data`.
+        Los adjuntos viajan **fuera** del lote de `/sync/push`: el lote solo
+        sincroniza los metadatos de la entidad `ADJUNTO`; el binario se sube por
+        este endpoint. El tamaño máximo por archivo es **10 MB** (RNF-05); un
+        archivo mayor se rechaza con `413` y el cliente marca el registro con
+        `sync_status = ERROR` (no se reintenta).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [uuid, nota_uuid, archivo]
+              properties:
+                uuid:
+                  type: string
+                  format: uuid
+                  description: Identificador del adjunto, generado en el cliente (UUID v4).
+                nota_uuid:
+                  type: string
+                  format: uuid
+                  description: Nota a la que pertenece el adjunto.
+                device_id:
+                  type: string
+                  description: Dispositivo que origina la subida, para trazabilidad.
+                archivo:
+                  type: string
+                  format: binary
+                  description: Contenido binario del archivo (máximo 10 MB, RNF-05).
+      responses:
+        '201':
+          description: Adjunto almacenado. Devuelve los metadatos con la `url_remota` asignada.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Adjunto'
+        '400':
+          $ref: '#/components/responses/ErrorValidacion'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '404':
+          description: La nota referenciada no existe o no pertenece al usuario autenticado.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Ya existe un adjunto con ese `uuid` y contenido distinto (violación de idempotencia).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '413':
+          description: El archivo excede el límite de 10 MB por adjunto (RNF-05).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /attachments/{uuid}:
+    parameters:
+      - $ref: '#/components/parameters/UuidAdjunto'
+    get:
+      tags: [Adjuntos]
+      operationId: descargarAdjunto
+      summary: Descargar un archivo adjunto
+      description: |
+        Devuelve el contenido binario del adjunto. El servidor valida que el
+        adjunto pertenezca al usuario autenticado (control de acceso por
+        `usuario_uuid`, sección 8).
+      responses:
+        '200':
+          description: Contenido binario del archivo.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+        '410':
+          description: El adjunto fue eliminado (tombstone) y su binario ya no está disponible.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+    delete:
+      tags: [Adjuntos]
+      operationId: eliminarAdjunto
+      summary: Eliminar un adjunto (soft delete)
+      description: |
+        Marca el adjunto como eliminado (`is_deleted = true`, tombstone de la
+        sección 5.4) para propagar la eliminación a los demás dispositivos vía
+        `/sync/pull`. La purga física del binario ocurre después de la ventana
+        de gracia, igual que la de los tombstones locales.
+      responses:
+        '204':
+          description: Adjunto marcado como eliminado.
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /history/{nota_uuid}:
+    get:
+      tags: [Historial]
+      operationId: obtenerHistorialNota
+      summary: Obtener el historial de cambios de una nota
+      description: |
+        Devuelve el historial de auditoría de una nota (RF-05), incluyendo las
+        entradas con `origen_cambio = CONFLICTO_DESCARTADO` generadas al
+        resolver conflictos por Last-Write-Wins (sección 5.3), de modo que el
+        usuario pueda revisar qué cambios fueron descartados y desde qué
+        dispositivo se originaron.
+      parameters:
+        - name: nota_uuid
+          in: path
+          required: true
+          description: Identificador (UUID v4) de la nota consultada.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Historial de cambios de la nota, ordenado por fecha descendente.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [historial]
+                properties:
+                  historial:
+                    type: array
+                    description: Entradas de auditoría de la nota.
+                    items:
+                      $ref: '#/components/schemas/HistorialCambio'
+        '401':
+          $ref: '#/components/responses/NoAutorizado'
+        '404':
+          $ref: '#/components/responses/NoEncontrado'
+
+  /health:
+    get:
+      tags: [Utilidades]
+      operationId: verificarSalud
+      summary: Verificar el estado del servicio
+      description: |
+        Healthcheck para monitoreo. Comprueba la disponibilidad del servicio y
+        de la conexión a PostgreSQL. No requiere autenticación.
+      security: []
+      responses:
+        '200':
+          description: El servicio opera con normalidad.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          description: El servicio o su base de datos no están disponibles.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Access token JWT emitido por `/auth/login` o `/auth/refresh`.
+        El cliente lo conserva en `flutter_secure_storage` (sección 8).
+
+  parameters:
+    UuidAdjunto:
+      name: uuid
+      in: path
+      required: true
+      description: Identificador (UUID v4) del adjunto, generado en el cliente.
+      schema:
+        type: string
+        format: uuid
+
+  responses:
+    NoAutorizado:
+      description: Token ausente, inválido o expirado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NoEncontrado:
+      description: El recurso no existe o no pertenece al usuario autenticado.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ErrorValidacion:
+      description: La solicitud no cumple el esquema o contiene datos inválidos.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+
+  schemas:
+    # ------------------------------------------------------------------
+    # Enums (sección 4.2 y 5.5 del documento de arquitectura)
+    # ------------------------------------------------------------------
+    SyncStatus:
+      type: string
+      description: Estado de sincronización de un registro (sección 4.2). Metadato gestionado por el cliente.
+      enum: [PENDING, SYNCED, CONFLICT, ERROR]
+
+    Operacion:
+      type: string
+      description: Tipo de operación dentro de un lote de sincronización (sección 5.5).
+      enum: [CREATE, UPDATE, DELETE]
+
+    OrigenCambio:
+      type: string
+      description: Origen de una entrada del historial de auditoría (secciones 4.1 y 5.3).
+      enum: [LOCAL, REMOTO, CONFLICTO_DESCARTADO]
+
+    EstadoResultado:
+      type: string
+      description: Resultado del procesamiento de una operación del lote (sección 5.5).
+      enum: [ACCEPTED, CONFLICT, ERROR]
+
+    EntidadSincronizable:
+      type: string
+      description: |
+        Entidad de dominio a la que aplica una operación de sincronización.
+        Las entradas de `HISTORIAL_CAMBIO` no se envían en el lote: el servidor
+        las genera a partir de las operaciones aceptadas y de los conflictos
+        detectados (RF-05).
+      enum: [NOTA, ADJUNTO]
+
+    # ------------------------------------------------------------------
+    # Entidades (sección 4.1) + metadatos de sincronización (sección 4.2)
+    # ------------------------------------------------------------------
+    Usuario:
+      type: object
+      description: Entidad USUARIO (sección 4.1). No incluye tokens de sesión; estos viven en `flutter_secure_storage` del cliente.
+      required: [uuid, nombre, email]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Identificador único generado en el cliente (UUID v4, sección 5.1).
+        nombre:
+          type: string
+          description: Nombre completo del usuario.
+        email:
+          type: string
+          format: email
+          description: Correo electrónico, único por cuenta.
+
+    Nota:
+      type: object
+      description: Entidad NOTA (sección 4.1), con los metadatos de sincronización de la sección 4.2.
+      required: [uuid, usuario_uuid, titulo, created_at, updated_at, is_deleted, version]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Identificador único generado en el cliente (UUID v4).
+        usuario_uuid:
+          type: string
+          format: uuid
+          description: Usuario propietario; base del control de acceso (sección 8).
+        titulo:
+          type: string
+          description: Título de la nota.
+        contenido:
+          type: string
+          description: Contenido de la nota.
+        created_at:
+          type: string
+          format: date-time
+          description: Momento de creación local, usado en auditoría.
+        updated_at:
+          type: string
+          format: date-time
+          description: Última modificación; base de la resolución Last-Write-Wins.
+        sync_status:
+          $ref: '#/components/schemas/SyncStatus'
+          description: Metadato local del cliente; el servidor no lo persiste como estado propio.
+        is_deleted:
+          type: boolean
+          description: Marca de borrado lógico (tombstone, sección 5.4).
+        version:
+          type: integer
+          description: Contador incremental para detectar ediciones concurrentes.
+        device_id:
+          type: string
+          description: Dispositivo de origen del último cambio, para trazabilidad.
+
+    Adjunto:
+      type: object
+      description: Entidad ADJUNTO (sección 4.1). El binario viaja por `/attachments`, no dentro del lote de sincronización.
+      required: [uuid, nota_uuid]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Identificador único generado en el cliente (UUID v4).
+        nota_uuid:
+          type: string
+          format: uuid
+          description: Nota a la que pertenece el adjunto.
+        ruta_local:
+          type: [string, 'null']
+          description: Ruta del archivo en el dispositivo. Metadato local del cliente; el servidor la conserva solo como dato informado.
+        url_remota:
+          type: [string, 'null']
+          format: uri
+          description: URL de descarga asignada por el servidor tras la subida.
+        sync_status:
+          $ref: '#/components/schemas/SyncStatus'
+          description: Metadato local del cliente.
+        is_deleted:
+          type: boolean
+          description: Marca de borrado lógico (tombstone).
+        version:
+          type: integer
+          description: Contador incremental para detectar ediciones concurrentes.
+        updated_at:
+          type: string
+          format: date-time
+          description: Última modificación del registro de metadatos.
+
+    HistorialCambio:
+      type: object
+      description: Entidad HISTORIAL_CAMBIO (sección 4.1) — historial de auditoría de RF-05.
+      required: [uuid, nota_uuid, tipo_cambio, origen_cambio, fecha]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Identificador único de la entrada de auditoría.
+        nota_uuid:
+          type: string
+          format: uuid
+          description: Nota sobre la que se registró el cambio.
+        tipo_cambio:
+          type: string
+          description: Naturaleza del cambio registrado (por ejemplo, creación, edición de título, eliminación).
+        origen_cambio:
+          $ref: '#/components/schemas/OrigenCambio'
+        fecha:
+          type: string
+          format: date-time
+          description: Momento en que ocurrió el cambio.
+        dispositivo_origen:
+          type: string
+          description: Dispositivo desde el que se originó el cambio.
+        valor_anterior:
+          type: [string, 'null']
+          description: Valor previo al cambio (serializado).
+        valor_nuevo:
+          type: [string, 'null']
+          description: Valor posterior al cambio (serializado). En conflictos descartados, el valor que no se aplicó al estado autoritativo.
+
+    # ------------------------------------------------------------------
+    # Contrato de sincronización (sección 5.5)
+    # ------------------------------------------------------------------
+    OperacionSync:
+      type: object
+      description: |
+        Operación individual dentro del lote de `/sync/push` (sección 5.5).
+        El `device_id` no viaja por operación: se envía una sola vez a nivel
+        del lote (`SyncPushRequest`), dado que todas las operaciones de un
+        envío provienen del mismo dispositivo.
+      required: [uuid, entidad, operacion, payload, updated_at, version]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Identificador del registro afectado; junto con `version`, forma la clave de idempotencia (sección 5.5).
+        entidad:
+          $ref: '#/components/schemas/EntidadSincronizable'
+        operacion:
+          $ref: '#/components/schemas/Operacion'
+        payload:
+          type: object
+          description: |
+            Contenido de la entidad según `entidad` (campos de `Nota` o
+            metadatos de `Adjunto`). En operaciones `DELETE` puede ir vacío:
+            el tombstone se identifica por `uuid` y `operacion`.
+          additionalProperties: true
+        updated_at:
+          type: string
+          format: date-time
+          description: Marca de tiempo del cambio en el cliente; base de Last-Write-Wins.
+        version:
+          type: integer
+          description: Versión del registro conocida por el cliente al momento del cambio.
+
+    SyncPushRequest:
+      type: object
+      description: Lote de operaciones pendientes enviado por la `SyncTask`.
+      required: [device_id, operaciones]
+      properties:
+        device_id:
+          type: string
+          description: Dispositivo que envía el lote.
+        operaciones:
+          type: array
+          description: Operaciones en el orden en que se generaron localmente.
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/OperacionSync'
+
+    ResultadoSync:
+      type: object
+      description: Resultado del procesamiento de una operación, en el mismo orden del lote de entrada.
+      required: [uuid, estado]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Identificador de la operación de origen.
+        estado:
+          $ref: '#/components/schemas/EstadoResultado'
+        version_servidor:
+          type: integer
+          description: Versión autoritativa del servidor tras procesar la operación. Obligatoria cuando `estado = CONFLICT`.
+        payload_servidor:
+          type: object
+          description: Estado autoritativo del registro en el servidor. Presente cuando `estado = CONFLICT`, para la resolución local (sección 5.3).
+          additionalProperties: true
+        error:
+          $ref: '#/components/schemas/Error'
+          description: Detalle del fallo cuando `estado = ERROR` (rechazo definitivo; el cliente no reintenta).
+
+    SyncPushResponse:
+      type: object
+      description: Respuesta de `/sync/push` — array de resultados en el mismo orden del lote recibido.
+      required: [resultados]
+      properties:
+        resultados:
+          type: array
+          items:
+            $ref: '#/components/schemas/ResultadoSync'
+
+    CambioServidor:
+      type: object
+      description: Cambio autoritativo del servidor entregado por `/sync/pull` para converger otros dispositivos (RNF-02).
+      required: [uuid, entidad, operacion, payload, version, updated_at, is_deleted]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Identificador del registro afectado.
+        entidad:
+          $ref: '#/components/schemas/EntidadSincronizable'
+        operacion:
+          $ref: '#/components/schemas/Operacion'
+        payload:
+          type: object
+          description: Estado autoritativo del registro. Vacío en tombstones.
+          additionalProperties: true
+        version:
+          type: integer
+          description: Versión autoritativa del registro.
+        updated_at:
+          type: string
+          format: date-time
+          description: Marca de tiempo autoritativa del cambio.
+        is_deleted:
+          type: boolean
+          description: Verdadero cuando el cambio es un tombstone (sección 5.4).
+        device_id:
+          type: string
+          description: Dispositivo que originó el cambio.
+
+    SyncPullResponse:
+      type: object
+      description: Respuesta paginada de `/sync/pull`.
+      required: [cambios, timestamp_servidor, hay_mas]
+      properties:
+        cambios:
+          type: array
+          description: Cambios posteriores a la marca `desde`, en orden cronológico.
+          items:
+            $ref: '#/components/schemas/CambioServidor'
+        timestamp_servidor:
+          type: string
+          format: date-time
+          description: Marca de tiempo del servidor a usar como `desde` en la próxima consulta.
+        hay_mas:
+          type: boolean
+          description: Verdadero si quedan más cambios por paginar con el mismo `desde` actualizado.
+
+    # ------------------------------------------------------------------
+    # Autenticación (sección 8)
+    # ------------------------------------------------------------------
+    RegistroRequest:
+      type: object
+      description: Datos de registro de una cuenta nueva.
+      required: [uuid, nombre, email, contrasena]
+      properties:
+        uuid:
+          type: string
+          format: uuid
+          description: Identificador del usuario, generado en el cliente (UUID v4).
+        nombre:
+          type: string
+          minLength: 1
+          description: Nombre completo del usuario.
+        email:
+          type: string
+          format: email
+          description: Correo electrónico, único por cuenta.
+        contrasena:
+          type: string
+          format: password
+          minLength: 8
+          description: Contraseña en texto plano solo en tránsito (HTTPS/TLS); se almacena con hash bcrypt.
+
+    LoginRequest:
+      type: object
+      description: Credenciales de inicio de sesión.
+      required: [email, contrasena]
+      properties:
+        email:
+          type: string
+          format: email
+          description: Correo electrónico de la cuenta.
+        contrasena:
+          type: string
+          format: password
+          description: Contraseña de la cuenta.
+
+    RefreshRequest:
+      type: object
+      description: Solicitud de refresco o invalidación de sesión.
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: Refresh token vigente emitido en el login.
+
+    TokensResponse:
+      type: object
+      description: Par de tokens JWT (sección 8). El cliente los almacena en `flutter_secure_storage`.
+      required: [access_token, refresh_token, token_type, expires_in]
+      properties:
+        access_token:
+          type: string
+          description: Token de acceso JWT de corta duración.
+        refresh_token:
+          type: string
+          description: Token de refresco de larga duración.
+        token_type:
+          type: string
+          description: Tipo de token; siempre `Bearer`.
+          const: Bearer
+        expires_in:
+          type: integer
+          description: Segundos de vigencia del access token; base de la validación local de expiración estando offline.
+
+    SesionResponse:
+      type: object
+      description: Sesión completa devuelta al registrar o iniciar sesión.
+      required: [usuario, tokens]
+      properties:
+        usuario:
+          $ref: '#/components/schemas/Usuario'
+        tokens:
+          $ref: '#/components/schemas/TokensResponse'
+
+    # ------------------------------------------------------------------
+    # Utilidades
+    # ------------------------------------------------------------------
+    Error:
+      type: object
+      description: Esquema de error estándar de la API.
+      required: [codigo, mensaje]
+      properties:
+        codigo:
+          type: string
+          description: Código de error estable, apto para lógica del cliente (por ejemplo, `EMAIL_DUPLICADO`, `ADJUNTO_EXCEDE_LIMITE`, `TOKEN_EXPIRADO`).
+        mensaje:
+          type: string
+          description: Descripción legible del error, en español.
+        detalle:
+          type: [string, 'null']
+          description: Información adicional de diagnóstico (campo inválido, límites, etc.).
+
+    Health:
+      type: object
+      description: Estado del servicio para monitoreo.
+      required: [estado, marca_tiempo]
+      properties:
+        estado:
+          type: string
+          description: Estado global del servicio.
+          enum: [ok, degradado, caido]
+        marca_tiempo:
+          type: string
+          format: date-time
+          description: Momento de la verificación.
+        base_datos:
+          type: string
+          description: Estado de la conexión a PostgreSQL.
+          enum: [ok, caido]

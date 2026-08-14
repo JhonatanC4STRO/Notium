@@ -1,0 +1,25 @@
+# IDE y herramientas locales
+.idea/
+.claude/
+*.iml
+
+# Secretos y configuracion local
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.production.example
+**/key.properties
+**/*.jks
+**/*.keystore
+
+# Dependencias, binarios y datos generados
+**/node_modules/
+**/.dart_tool/
+**/build/
+**/coverage/
+backend/uploads/
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db

@@ -1,0 +1,7 @@
+# Declara el tag de los tests de integración (tarea 3.6), que hablan con el
+# backend real. Se ejecutan con la suite normal, pero se AUTOSALTAN si el
+# backend no está disponible, así `flutter test` sigue verde sin red.
+tags:
+  integracion:
+    # Timeout amplio: hay round-trips HTTP reales.
+    timeout: 2x

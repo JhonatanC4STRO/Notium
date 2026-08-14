@@ -1,0 +1,10 @@
+# Opciones de generación de Drift.
+targets:
+  $default:
+    builders:
+      drift_dev:
+        options:
+          # Fechas como texto ISO-8601 preservando UTC (en vez de epoch leído
+          # como hora local): updated_at es la base del LWW entre dispositivos
+          # (sección 5.3) y debe comparar en UTC sin ambigüedad.
+          store_date_time_values_as_text: true

@@ -1,0 +1,557 @@
+{
+  "_meta": {
+    "description": "This file contains a serialized version of schema entities for drift.",
+    "version": "1.3.0"
+  },
+  "options": {
+    "store_date_time_values_as_text": true
+  },
+  "entities": [
+    {
+      "id": 0,
+      "references": [],
+      "type": "table",
+      "data": {
+        "name": "notas",
+        "was_declared_in_moor": false,
+        "columns": [
+          {
+            "name": "created_at",
+            "getter_name": "createdAt",
+            "moor_type": "dateTime",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "updated_at",
+            "getter_name": "updatedAt",
+            "moor_type": "dateTime",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "sync_status",
+            "getter_name": "syncStatus",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": "const CustomExpression('\\'PENDING\\'')",
+            "default_client_dart": null,
+            "dsl_features": [],
+            "type_converter": {
+              "dart_expr": "const EnumNameConverter<SyncStatus>(SyncStatus.values)",
+              "dart_type_name": "SyncStatus"
+            }
+          },
+          {
+            "name": "is_deleted",
+            "getter_name": "isDeleted",
+            "moor_type": "bool",
+            "nullable": false,
+            "customConstraints": null,
+            "defaultConstraints": "CHECK (\"is_deleted\" IN (0, 1))",
+            "dialectAwareDefaultConstraints": {
+              "sqlite": "CHECK (\"is_deleted\" IN (0, 1))"
+            },
+            "default_dart": "const CustomExpression('0')",
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "version",
+            "getter_name": "version",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": "const CustomExpression('1')",
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "device_id",
+            "getter_name": "deviceId",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "sincronizado",
+            "getter_name": "sincronizado",
+            "moor_type": "bool",
+            "nullable": false,
+            "customConstraints": null,
+            "defaultConstraints": "CHECK (\"sincronizado\" IN (0, 1))",
+            "dialectAwareDefaultConstraints": {
+              "sqlite": "CHECK (\"sincronizado\" IN (0, 1))"
+            },
+            "default_dart": "const CustomExpression('0')",
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "uuid",
+            "getter_name": "uuid",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "usuario_uuid",
+            "getter_name": "usuarioUuid",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "titulo",
+            "getter_name": "titulo",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "contenido",
+            "getter_name": "contenido",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [],
+        "explicit_pk": [
+          "uuid"
+        ]
+      }
+    },
+    {
+      "id": 1,
+      "references": [
+        0
+      ],
+      "type": "table",
+      "data": {
+        "name": "adjuntos",
+        "was_declared_in_moor": false,
+        "columns": [
+          {
+            "name": "created_at",
+            "getter_name": "createdAt",
+            "moor_type": "dateTime",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "updated_at",
+            "getter_name": "updatedAt",
+            "moor_type": "dateTime",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "sync_status",
+            "getter_name": "syncStatus",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": "const CustomExpression('\\'PENDING\\'')",
+            "default_client_dart": null,
+            "dsl_features": [],
+            "type_converter": {
+              "dart_expr": "const EnumNameConverter<SyncStatus>(SyncStatus.values)",
+              "dart_type_name": "SyncStatus"
+            }
+          },
+          {
+            "name": "is_deleted",
+            "getter_name": "isDeleted",
+            "moor_type": "bool",
+            "nullable": false,
+            "customConstraints": null,
+            "defaultConstraints": "CHECK (\"is_deleted\" IN (0, 1))",
+            "dialectAwareDefaultConstraints": {
+              "sqlite": "CHECK (\"is_deleted\" IN (0, 1))"
+            },
+            "default_dart": "const CustomExpression('0')",
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "version",
+            "getter_name": "version",
+            "moor_type": "int",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": "const CustomExpression('1')",
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "device_id",
+            "getter_name": "deviceId",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "sincronizado",
+            "getter_name": "sincronizado",
+            "moor_type": "bool",
+            "nullable": false,
+            "customConstraints": null,
+            "defaultConstraints": "CHECK (\"sincronizado\" IN (0, 1))",
+            "dialectAwareDefaultConstraints": {
+              "sqlite": "CHECK (\"sincronizado\" IN (0, 1))"
+            },
+            "default_dart": "const CustomExpression('0')",
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "uuid",
+            "getter_name": "uuid",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "nota_uuid",
+            "getter_name": "notaUuid",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "defaultConstraints": "REFERENCES notas (uuid)",
+            "dialectAwareDefaultConstraints": {
+              "sqlite": "REFERENCES notas (uuid)"
+            },
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "notas",
+                    "column": "uuid"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": null
+                }
+              }
+            ]
+          },
+          {
+            "name": "ruta_local",
+            "getter_name": "rutaLocal",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "url_remota",
+            "getter_name": "urlRemota",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [],
+        "explicit_pk": [
+          "uuid"
+        ]
+      }
+    },
+    {
+      "id": 2,
+      "references": [
+        0
+      ],
+      "type": "table",
+      "data": {
+        "name": "historial_cambios",
+        "was_declared_in_moor": false,
+        "columns": [
+          {
+            "name": "uuid",
+            "getter_name": "uuid",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "nota_uuid",
+            "getter_name": "notaUuid",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "defaultConstraints": "REFERENCES notas (uuid)",
+            "dialectAwareDefaultConstraints": {
+              "sqlite": "REFERENCES notas (uuid)"
+            },
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [
+              {
+                "foreign_key": {
+                  "to": {
+                    "table": "notas",
+                    "column": "uuid"
+                  },
+                  "initially_deferred": false,
+                  "on_update": null,
+                  "on_delete": null
+                }
+              }
+            ]
+          },
+          {
+            "name": "tipo_cambio",
+            "getter_name": "tipoCambio",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "origen_cambio",
+            "getter_name": "origenCambio",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": [],
+            "type_converter": {
+              "dart_expr": "const EnumNameConverter<OrigenCambio>(OrigenCambio.values)",
+              "dart_type_name": "OrigenCambio"
+            }
+          },
+          {
+            "name": "fecha",
+            "getter_name": "fecha",
+            "moor_type": "dateTime",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "dispositivo_origen",
+            "getter_name": "dispositivoOrigen",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "valor_anterior",
+            "getter_name": "valorAnterior",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "valor_nuevo",
+            "getter_name": "valorNuevo",
+            "moor_type": "string",
+            "nullable": true,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [],
+        "explicit_pk": [
+          "uuid"
+        ]
+      }
+    },
+    {
+      "id": 3,
+      "references": [],
+      "type": "table",
+      "data": {
+        "name": "usuarios",
+        "was_declared_in_moor": false,
+        "columns": [
+          {
+            "name": "uuid",
+            "getter_name": "uuid",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "nombre",
+            "getter_name": "nombre",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "email",
+            "getter_name": "email",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [],
+        "explicit_pk": [
+          "uuid"
+        ]
+      }
+    },
+    {
+      "id": 4,
+      "references": [],
+      "type": "table",
+      "data": {
+        "name": "sync_meta",
+        "was_declared_in_moor": false,
+        "columns": [
+          {
+            "name": "clave",
+            "getter_name": "clave",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          },
+          {
+            "name": "valor",
+            "getter_name": "valor",
+            "moor_type": "string",
+            "nullable": false,
+            "customConstraints": null,
+            "default_dart": null,
+            "default_client_dart": null,
+            "dsl_features": []
+          }
+        ],
+        "is_virtual": false,
+        "without_rowid": false,
+        "constraints": [],
+        "explicit_pk": [
+          "clave"
+        ]
+      }
+    }
+  ],
+  "fixed_sql": [
+    {
+      "name": "notas",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"notas\" (\"created_at\" TEXT NOT NULL, \"updated_at\" TEXT NOT NULL, \"sync_status\" TEXT NOT NULL DEFAULT 'PENDING', \"is_deleted\" INTEGER NOT NULL DEFAULT 0 CHECK (\"is_deleted\" IN (0, 1)), \"version\" INTEGER NOT NULL DEFAULT 1, \"device_id\" TEXT NULL, \"sincronizado\" INTEGER NOT NULL DEFAULT 0 CHECK (\"sincronizado\" IN (0, 1)), \"uuid\" TEXT NOT NULL, \"usuario_uuid\" TEXT NOT NULL, \"titulo\" TEXT NOT NULL, \"contenido\" TEXT NULL, PRIMARY KEY (\"uuid\"));"
+        }
+      ]
+    },
+    {
+      "name": "adjuntos",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"adjuntos\" (\"created_at\" TEXT NOT NULL, \"updated_at\" TEXT NOT NULL, \"sync_status\" TEXT NOT NULL DEFAULT 'PENDING', \"is_deleted\" INTEGER NOT NULL DEFAULT 0 CHECK (\"is_deleted\" IN (0, 1)), \"version\" INTEGER NOT NULL DEFAULT 1, \"device_id\" TEXT NULL, \"sincronizado\" INTEGER NOT NULL DEFAULT 0 CHECK (\"sincronizado\" IN (0, 1)), \"uuid\" TEXT NOT NULL, \"nota_uuid\" TEXT NOT NULL REFERENCES notas (uuid), \"ruta_local\" TEXT NULL, \"url_remota\" TEXT NULL, PRIMARY KEY (\"uuid\"));"
+        }
+      ]
+    },
+    {
+      "name": "historial_cambios",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"historial_cambios\" (\"uuid\" TEXT NOT NULL, \"nota_uuid\" TEXT NOT NULL REFERENCES notas (uuid), \"tipo_cambio\" TEXT NOT NULL, \"origen_cambio\" TEXT NOT NULL, \"fecha\" TEXT NOT NULL, \"dispositivo_origen\" TEXT NULL, \"valor_anterior\" TEXT NULL, \"valor_nuevo\" TEXT NULL, PRIMARY KEY (\"uuid\"));"
+        }
+      ]
+    },
+    {
+      "name": "usuarios",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"usuarios\" (\"uuid\" TEXT NOT NULL, \"nombre\" TEXT NOT NULL, \"email\" TEXT NOT NULL, PRIMARY KEY (\"uuid\"));"
+        }
+      ]
+    },
+    {
+      "name": "sync_meta",
+      "sql": [
+        {
+          "dialect": "sqlite",
+          "sql": "CREATE TABLE IF NOT EXISTS \"sync_meta\" (\"clave\" TEXT NOT NULL, \"valor\" TEXT NOT NULL, PRIMARY KEY (\"clave\"));"
+        }
+      ]
+    }
+  ]
+}
