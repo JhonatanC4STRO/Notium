@@ -1,5 +1,6 @@
 const githubUrl = "https://github.com/JhonatanC4STRO/Notium";
 const apkDownloadUrl = `${githubUrl}/releases/latest/download/notium-v1.0.0.apk`;
+const onlineDemoUrl = "https://appetize.io/app/b_twsuanr6f4tzug6lfgqmo46wqe";
 const apiHealthUrl = "https://api.notium.shona.lat/v1/health";
 
 const features = [
@@ -69,11 +70,11 @@ export default function Home() {
             y sincroniza después. Rápida, cifrada y preparada para conexiones reales.
           </p>
           <div className="hero-actions">
-            <a className="button button-primary" href={apkDownloadUrl}>
-              Descargar APK <span>↓</span>
+            <a className="button button-primary" href={onlineDemoUrl} target="_blank" rel="noreferrer">
+              Probar en línea <span>↗</span>
             </a>
-            <a className="button button-ghost" href={githubUrl} target="_blank" rel="noreferrer">
-              Ver el código <span>↗</span>
+            <a className="button button-ghost" href={apkDownloadUrl}>
+              Descargar APK <span>↓</span>
             </a>
           </div>
           <div className="hero-proof" aria-label="Resumen técnico">
@@ -246,8 +247,8 @@ export default function Home() {
           <h2>Construido para funcionar cuando internet no lo hace.</h2>
           <p>Explora el código, las pruebas, el contrato OpenAPI y las decisiones detrás de Notium.</p>
           <div className="hero-actions">
-            <a className="button button-light" href={apkDownloadUrl}>Descargar para Android ↓</a>
-            <a className="button button-outline-light" href={githubUrl} target="_blank" rel="noreferrer">Explorar repositorio ↗</a>
+            <a className="button button-light" href={onlineDemoUrl} target="_blank" rel="noreferrer">Probar en el navegador ↗</a>
+            <a className="button button-outline-light" href={apkDownloadUrl}>Descargar para Android ↓</a>
           </div>
           <div className="cta-grid" aria-hidden="true" />
         </div>
