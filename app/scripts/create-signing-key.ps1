@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$DistinguishedName = "CN=Jhonatan Castro, OU=Notium, O=Notium, L=Bogota, ST=Bogota, C=CO"
+    [string]$DistinguishedName = "CN=Jhonatan Castro, OU=Notium, O=Notium, L=Bogota, ST=Bogota, C=CO",
+    [switch]$GeneratePassword
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,8 +18,25 @@ if (-not (Get-Command keytool -ErrorAction SilentlyContinue)) {
     throw "No se encontro keytool. Instala un JDK y vuelve a ejecutar el script."
 }
 
-$securePassword = Read-Host "Contrasena nueva para la clave de firma" -AsSecureString
-$confirmation = Read-Host "Repite la contrasena" -AsSecureString
+$generatedPassword = $null
+if ($GeneratePassword) {
+    $randomBytes = New-Object byte[] 32
+    $randomNumberGenerator = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $randomNumberGenerator.GetBytes($randomBytes)
+    }
+    finally {
+        $randomNumberGenerator.Dispose()
+    }
+    $generatedPassword = [Convert]::ToBase64String($randomBytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
+    [Array]::Clear($randomBytes, 0, $randomBytes.Length)
+    $securePassword = ConvertTo-SecureString $generatedPassword -AsPlainText -Force
+    $confirmation = ConvertTo-SecureString $generatedPassword -AsPlainText -Force
+}
+else {
+    $securePassword = Read-Host "Contrasena nueva para la clave de firma" -AsSecureString
+    $confirmation = Read-Host "Repite la contrasena" -AsSecureString
+}
 $passwordPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($securePassword)
 $confirmationPtr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($confirmation)
 
@@ -70,4 +88,5 @@ finally {
     [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($confirmationPtr)
     $password = $null
     $confirmationText = $null
+    $generatedPassword = $null
 }
