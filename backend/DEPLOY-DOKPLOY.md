@@ -1,14 +1,14 @@
 # Desplegar Notium desde el panel de Dokploy
 
 Dokploy ya incluye Traefik para dominios y certificados HTTPS. Este despliegue
-usa `docker-compose.dokploy.yml`, que contiene solamente la API y PostgreSQL;
+usa `docker-compose.dokploy.yml`, que contiene la landing, la API y PostgreSQL;
 no se debe agregar Caddy ni publicar directamente los puertos 80, 443 o 3000.
 
 ## Antes de entrar al panel
 
 1. Sube el proyecto completo a un repositorio Git.
-2. Crea un registro DNS `A`, por ejemplo `api.notium.midominio.com`, apuntando
-   a la IPv4 del VPS donde esta Dokploy.
+2. Crea dos registros DNS `A`, `notium.midominio.com` y
+   `api.notium.midominio.com`, apuntando a la IPv4 del VPS donde esta Dokploy.
 3. Espera a que el DNS resuelva antes de solicitar el certificado.
 
 ## 1. Crear el servicio Compose
@@ -45,17 +45,16 @@ openssl rand -hex 48
 No agregues `DATABASE_URL`: el Compose la construye internamente usando el
 servicio privado `db`.
 
-## 3. Dominio y HTTPS
+## 3. Dominios y HTTPS
 
 1. Abre **Domains** dentro del servicio Compose.
-2. Selecciona **Add Domain** o **Create Domain**.
-3. Host: `api.notium.midominio.com`.
-4. Path: `/`.
-5. Service Name: `api`.
-6. Container Port: `3000`.
-7. HTTPS: activado.
-8. Certificate: **Let's Encrypt**.
-9. Guarda el dominio.
+2. Crea el dominio de la landing: host `notium.midominio.com`, path `/`,
+   Service Name `frontend`, Container Port `3000`, HTTPS activado y certificado
+   **Let's Encrypt**.
+3. Crea el dominio de la API: host `api.notium.midominio.com`, path `/`,
+   Service Name `api`, Container Port `3000`, HTTPS activado y certificado
+   **Let's Encrypt**.
+4. Guarda ambos dominios y vuelve a desplegar el Compose.
 
 No agregues nada en Advanced -> Ports. El puerto 3000 debe permanecer interno
 y Traefik se encargara de dirigir las solicitudes HTTPS al servicio `api`.
@@ -65,7 +64,7 @@ Los cambios de dominio de un Compose requieren un nuevo despliegue.
 ## 4. Desplegar y comprobar
 
 1. Usa **Preview Compose** para confirmar que Dokploy agrego las etiquetas de
-   Traefik al servicio `api` y no al servicio `db`.
+   Traefik a `frontend` y `api`, pero no al servicio `db`.
 2. Pulsa **Deploy**.
 3. En **Deployments** o **Logs**, espera estos mensajes de la API:
 
@@ -74,9 +73,10 @@ Migrations complete!
 API de Notium escuchando en http://localhost:3000/v1
 ```
 
-4. Abre:
+4. Abre la landing y el health check:
 
 ```text
+https://notium.midominio.com
 https://api.notium.midominio.com/v1/health
 ```
 

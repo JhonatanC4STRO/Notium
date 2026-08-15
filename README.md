@@ -39,6 +39,7 @@ flowchart LR
 
 ```text
 app/       Cliente Flutter para Android
+frontend/  Landing pública y visualización de arquitectura
 backend/   API REST y migraciones PostgreSQL
 doc/       Arquitectura, casos de uso y contrato OpenAPI
 ```

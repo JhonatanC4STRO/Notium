@@ -16,6 +16,8 @@
 **/node_modules/
 **/.dart_tool/
 **/build/
+**/dist/
+**/.wrangler/
 **/coverage/
 backend/uploads/
 *.log

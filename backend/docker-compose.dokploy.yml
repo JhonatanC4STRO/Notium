@@ -1,6 +1,14 @@
 name: notium
 
 services:
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "3000"
+
   api:
     build:
       context: .
