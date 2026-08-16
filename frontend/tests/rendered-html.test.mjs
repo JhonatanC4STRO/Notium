@@ -29,6 +29,10 @@ test("renderiza la landing completa de Notium", async () => {
   assert.match(html, /Tus notas no/);
   assert.match(html, /Local primero/);
   assert.match(html, /Ciclo de sincronización/);
+  assert.match(html, /Máquina de estados/);
+  assert.match(html, /Last-Write-Wins, pero con memoria/);
+  assert.match(html, /Cada tecnología resuelve un riesgo concreto/);
+  assert.match(html, /Protección en cada frontera/);
   assert.match(html, /Jhonatan Castro/);
   assert.match(html, /Probar en l(?:í|&#xED;)nea/);
   assert.match(html, /appetize\.io\/app\/b_pcpdwcomrd4rfbtsdsstcijipi/);

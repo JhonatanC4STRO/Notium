@@ -15,12 +15,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return {
     metadataBase,
     title: "Notium — Notas offline-first para Android",
-    description: "Aplicación Android cifrada que funciona sin conexión y sincroniza cuando la red vuelve.",
+    description: "Caso de estudio de una arquitectura Android offline-first: persistencia cifrada, sincronización idempotente, conflictos y decisiones de stack.",
     keywords: ["Flutter", "offline-first", "Android", "SQLCipher", "PostgreSQL", "sincronización"],
     authors: [{ name: "Jhonatan Castro" }],
     openGraph: {
       title: "Notium — Notas offline-first",
-      description: "Tus notas no deberían esperar por la red.",
+      description: "Arquitectura offline-first explicada: del guardado local a la convergencia entre dispositivos.",
       type: "website",
       locale: "es_CO",
       images: [{ url: "/og.png", width: 1536, height: 1024, alt: "Notium, notas offline-first" }],
@@ -28,7 +28,7 @@ export async function generateMetadata(): Promise<Metadata> {
     twitter: {
       card: "summary_large_image",
       title: "Notium — Notas offline-first",
-      description: "Tus notas no deberían esperar por la red.",
+      description: "Arquitectura offline-first explicada: del guardado local a la convergencia entre dispositivos.",
       images: ["/og.png"],
     },
   };
