@@ -31,7 +31,7 @@ test("renderiza la landing completa de Notium", async () => {
   assert.match(html, /Ciclo de sincronización/);
   assert.match(html, /Jhonatan Castro/);
   assert.match(html, /Probar en l(?:í|&#xED;)nea/);
-  assert.match(html, /appetize\.io\/app\/b_twsuanr6f4tzug6lfgqmo46wqe/);
+  assert.match(html, /appetize\.io\/app\/b_pcpdwcomrd4rfbtsdsstcijipi/);
   assert.match(html, /releases\/latest\/download\/notium-v1\.0\.0\.apk/);
   assert.match(html, /og\.png/);
   assert.doesNotMatch(html, /codex-preview|SkeletonPreview|Your site is taking shape/);

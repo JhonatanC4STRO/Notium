@@ -1,6 +1,6 @@
 const githubUrl = "https://github.com/JhonatanC4STRO/Notium";
 const apkDownloadUrl = `${githubUrl}/releases/latest/download/notium-v1.0.0.apk`;
-const onlineDemoUrl = "https://appetize.io/app/b_twsuanr6f4tzug6lfgqmo46wqe";
+const onlineDemoUrl = "https://appetize.io/app/b_pcpdwcomrd4rfbtsdsstcijipi";
 const apiHealthUrl = "https://api.notium.shona.lat/v1/health";
 
 const features = [
